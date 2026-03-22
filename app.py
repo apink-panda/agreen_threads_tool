@@ -345,7 +345,7 @@ with tab2:
         camera_image = st.camera_input("📸 請對準粉絲 QR Code 點擊拍照")
         
         if camera_image is not None:
-            from PIL import Image
+            from PIL import Image, ImageOps, ImageEnhance
             from pyzbar.pyzbar import decode
             import re
             
@@ -353,8 +353,20 @@ with tab2:
                 # 影像處理
                 img = Image.open(camera_image)
                 
-                # 使用 pyzbar 進行更強力的掃描
-                decoded_objects = decode(img)
+                # 1. 自動修正 iOS 手機相機常見的 EXIF 旋轉問題 (最重要！)
+                img = ImageOps.exif_transpose(img)
+                
+                # 2. 轉成灰階並加強對比度，讓條碼更清晰
+                img_gray = img.convert('L')
+                enhancer = ImageEnhance.Contrast(img_gray)
+                img_enhanced = enhancer.enhance(2.0)
+                
+                # 3. 使用 pyzbar 進行更強力的掃描
+                decoded_objects = decode(img_enhanced)
+                
+                # 如果加強對比後失敗，退回使用純色修正原圖再掃一次
+                if not decoded_objects:
+                    decoded_objects = decode(img)
                 
                 if not decoded_objects:
                     st.error("❌ 無法辨識圖片中的 QR Code，請對焦清楚再拍一次（您可以先按右上角的 X 清除後重拍）！")
