@@ -353,18 +353,26 @@ with tab2:
                 # 影像處理
                 img = Image.open(camera_image)
                 
-                # 1. 自動修正 iOS 手機相機常見的 EXIF 旋轉問題 (最重要！)
+                # 1. 自動修正 iOS 手機相機常見的 EXIF 旋轉問題
                 img = ImageOps.exif_transpose(img)
                 
-                # 2. 轉成灰階並加強對比度，讓條碼更清晰
+                # 2. 轉成灰階並加強對比度，讓條碼更清晰 (適應大多數手機)
                 img_gray = img.convert('L')
                 enhancer = ImageEnhance.Contrast(img_gray)
                 img_enhanced = enhancer.enhance(2.0)
                 
-                # 3. 使用 pyzbar 進行更強力的掃描
+                # 3. 第一波掃描 (正常白底黑線)
                 decoded_objects = decode(img_enhanced)
                 
-                # 如果加強對比後失敗，退回使用純色修正原圖再掃一次
+                # 4. 第二波掃描 (深色模式/黑底白線) 非常重要
+                if not decoded_objects:
+                    # 把深色模式的顏色反轉 (負片效果) 變成白底黑線再掃一次！
+                    img_inverted = ImageOps.invert(img_gray)
+                    enhancer_inv = ImageEnhance.Contrast(img_inverted)
+                    img_inv_enhanced = enhancer_inv.enhance(2.0)
+                    decoded_objects = decode(img_inv_enhanced)
+                
+                # 5. 第三波掃描 如果都失敗，退回使用純色修正原圖再掃一次
                 if not decoded_objects:
                     decoded_objects = decode(img)
                 
