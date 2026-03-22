@@ -356,7 +356,17 @@ with tab2:
         
         camera_image = st.camera_input("📸 請對準粉絲 QR Code 點擊拍照")
         
-        if camera_image is not None:
+        st.markdown("---")
+        st.subheader("✍️ 備用：手動輸入帳號驗證")
+        manual_username = st.text_input("如果相機一直無法掃描（例如螢幕碎裂、嚴重反光），請直接在此輸入該粉絲的 Threads 帳號 (按 Enter 送出)", placeholder="例如：panda_lover")
+        
+        target_username = None
+        
+        # 1. 判斷來源 (手動優先，相機其次)
+        if manual_username.strip():
+            target_username = manual_username.strip()
+            
+        elif camera_image is not None:
             from PIL import Image, ImageOps, ImageEnhance
             from pyzbar.pyzbar import decode
             import re
@@ -365,105 +375,105 @@ with tab2:
                 # 影像處理
                 img = Image.open(camera_image)
                 
-                # 1. 自動修正 iOS 手機相機常見的 EXIF 旋轉問題
+                # 自動修正 iOS 手機相機常見的 EXIF 旋轉問題
                 img = ImageOps.exif_transpose(img)
                 
-                # 2. 轉成灰階並加強對比度，讓條碼更清晰 (適應大多數手機)
+                # 轉成灰階並加強對比度，讓條碼更清晰
                 img_gray = img.convert('L')
                 enhancer = ImageEnhance.Contrast(img_gray)
                 img_enhanced = enhancer.enhance(2.0)
                 
-                # 3. 第一波掃描 (正常白底黑線)
+                # 第一波掃描 (正常白底黑線)
                 decoded_objects = decode(img_enhanced)
                 
-                # 4. 第二波掃描 (深色模式/黑底白線) 非常重要
+                # 第二波掃描 (深色模式/黑底白線) 
                 if not decoded_objects:
-                    # 把深色模式的顏色反轉 (負片效果) 變成白底黑線再掃一次！
                     img_inverted = ImageOps.invert(img_gray)
                     enhancer_inv = ImageEnhance.Contrast(img_inverted)
                     img_inv_enhanced = enhancer_inv.enhance(2.0)
                     decoded_objects = decode(img_inv_enhanced)
                 
-                # 5. 第三波掃描 如果都失敗，退回使用純色修正原圖再掃一次
+                # 第三波掃描 如果都失敗，退回使用純色修正原圖再掃一次
                 if not decoded_objects:
                     decoded_objects = decode(img)
                 
                 if not decoded_objects:
-                    st.error("❌ 無法辨識圖片中的 QR Code，請對焦清楚再拍一次（您可以先按右上角的 X 清除後重拍）！")
+                    st.error("❌ 無法辨識圖片中的 QR Code，請對焦清楚再拍一次（或者是直接在下方手動輸入帳號）！")
                 else:
-                    # 取得第一組掃描到的 QR Code 內容
+                    # 取得掃描到的內容
                     data = decoded_objects[0].data.decode('utf-8')
-                    
-                    # 解析抓到的字串 (例如 https://www.threads.net/@yung_hsin_c)
                     match = re.search(r'[@]([\w._]+)', data)
                     if match:
-                        scan_username = match.group(1)
-                        st.subheader(f"👤 掃描結果：@{scan_username}")
-                        
-                        # 在資料表中尋找該帳號
-                        if '帳號 (Username)' not in df_rewards.columns:
-                            st.error("❌ 雲端資料庫的格式錯誤，找不到「帳號 (Username)」欄位！")
-                        else:
-                            user_row = df_rewards[df_rewards['帳號 (Username)'] == scan_username]
-                            
-                            if user_row.empty:
-                                st.error("❌ 此帳號不在得獎的雲端名單中！")
-                            else:
-                                # 檢查是否獲得綠心 (💚) 回覆
-                                reply_text = str(user_row.iloc[0].get('回覆內容', ''))
-                                # 解析雲端同步的已領取狀態
-                                is_claimed_gsheet = str(user_row.iloc[0].get('是否已領取 (Claimed)', 'FALSE')).upper() == 'TRUE'
-                                
-                                if scan_username != ADMIN_USERNAME and '💚' not in reply_text:
-                                    st.warning("⚠️ 此帳號雖然有留言，但作者並未以 💚 回覆，不符合領取資格喔！")
-                                else:
-                                    # 檢查是否已領取過 (本地紀錄 或 遠端 Google 表單為 TRUE)
-                                    if scan_username in st.session_state.claimed_users or is_claimed_gsheet:
-                                        st.error(f"🛑 @{scan_username} 您已經領取過應援物了，給別人機會領囉！")
-                                    else:
-                                        reward_str = user_row.iloc[0].get('應發放物', '應援物')
-                                        if scan_username == ADMIN_USERNAME:
-                                            st.success(f"🎉 測試帳號通關！主辦方 @{scan_username} 無需綠心審核！\n\n### 🎁 測試發放物件：【 {reward_str} 】")
-                                        else:
-                                            st.success(f"🎉 驗證成功！@{scan_username} 有留言且獲得 💚 回覆！\n\n### 🎁 請發放：【 {reward_str} 】")
-                                        st.markdown("👇 **您發放給他後，記得一定要點下方的發放按鈕！系統會幫您寫入遠端表單。**")
-                                        
-                                        if st.button("✅ 確認發放 (打勾狀態並同步寫回 Google Sheets)", type="primary"):
-                                            # 更新本地
-                                            st.session_state.claimed_users.add(scan_username)
-                                            st.session_state.df_rewards.loc[st.session_state.df_rewards['帳號 (Username)'] == scan_username, '是否已領取 (Claimed)'] = 'TRUE'
-                                            
-                                            # 同步寫回 Google Sheets
-                                            with st.spinner("🔄 同步狀態至雲端 Google Sheets..."):
-                                                try:
-                                                    ws = get_gsheet()
-                                                    header_row = ws.row_values(1)
-                                                    
-                                                    if '帳號 (Username)' in header_row and '是否已領取 (Claimed)' in header_row:
-                                                        username_col_idx = header_row.index('帳號 (Username)') + 1
-                                                        col_idx = header_row.index('是否已領取 (Claimed)') + 1
-                                                        
-                                                        # 從表單精準在「帳號」那一欄尋找該帳號所在的 row
-                                                        cell = ws.find(scan_username, in_column=username_col_idx)
-                                                        if cell:
-                                                            row_num = cell.row
-                                                            ws.update_cell(row_num, col_idx, "TRUE")
-                                                            st.success("✅ 真．同步完成！已經將此人狀態更改為「TRUE」，更新到 Google Sheets 裡了！")
-                                                        else:
-                                                            st.warning("⚠️ 寫入失敗，在 Google 表單「帳號」欄位裡找不到這個帳號的儲存格。")
-                                                    else:
-                                                        st.error("找不到必須的欄位！您的 Google 表單格式不對。")
-                                                except Exception as e:
-                                                    st.error(f"雲端連線更新失敗：{e}")
-                                            time.sleep(1) # 暫停讓使用者看到成功訊息
-                                            try:
-                                                st.rerun()
-                                            except AttributeError:
-                                                st.experimental_rerun()
+                        target_username = match.group(1)
                     else:
                         st.error(f"❌ 掃描到的不是有效的 Threads 帳號網址！({data})")
             except Exception as e:
                 st.error(f"處理照片時發生錯誤: {e}")
+
+        # ----------------- 2. 統一驗證核心邏輯 ----------------- #
+        if target_username:
+            st.subheader(f"👤 準備驗證：@{target_username}")
+            
+            # 在資料表中尋找該帳號
+            if '帳號 (Username)' not in df_rewards.columns:
+                st.error("❌ 雲端資料庫的格式錯誤，找不到「帳號 (Username)」欄位！")
+            else:
+                user_row = df_rewards[df_rewards['帳號 (Username)'] == target_username]
+                
+                if user_row.empty:
+                    st.error("❌ 此帳號不在得獎的雲端名單中！")
+                else:
+                    # 檢查是否獲得綠心 (💚) 回覆
+                    reply_text = str(user_row.iloc[0].get('回覆內容', ''))
+                    # 解析雲端同步的已領取狀態
+                    is_claimed_gsheet = str(user_row.iloc[0].get('是否已領取 (Claimed)', 'FALSE')).upper() == 'TRUE'
+                    
+                    if target_username != ADMIN_USERNAME and '💚' not in reply_text:
+                        st.warning("⚠️ 此帳號雖然有留言，但作者並未以 💚 回覆，不符合領取資格喔！")
+                    else:
+                        # 檢查是否已領取過 (本地紀錄 或 遠端 Google 表單為 TRUE)
+                        if target_username in st.session_state.claimed_users or is_claimed_gsheet:
+                            st.error(f"🛑 @{target_username} 您已經領取過應援物了，給別人機會領囉！")
+                        else:
+                            reward_str = user_row.iloc[0].get('應發放物', '應援物')
+                            if target_username == ADMIN_USERNAME:
+                                st.success(f"🎉 測試帳號通關！主辦方 @{target_username} 無需綠心審核！\n\n### 🎁 測試發放物件：【 {reward_str} 】")
+                            else:
+                                st.success(f"🎉 驗證成功！@{target_username} 有留言且獲得 💚 回覆！\n\n### 🎁 請發放：【 {reward_str} 】")
+                            st.markdown("👇 **您發放給他後，記得一定要點下方的發放按鈕！系統會幫您寫入遠端表單。**")
+                            
+                            if st.button("✅ 確認發放 (打勾狀態並同步寫回 Google Sheets)", type="primary"):
+                                # 更新本地
+                                st.session_state.claimed_users.add(target_username)
+                                st.session_state.df_rewards.loc[st.session_state.df_rewards['帳號 (Username)'] == target_username, '是否已領取 (Claimed)'] = 'TRUE'
+                                
+                                # 同步寫回 Google Sheets
+                                with st.spinner("🔄 同步狀態至雲端 Google Sheets..."):
+                                    try:
+                                        ws = get_gsheet()
+                                        header_row = ws.row_values(1)
+                                        
+                                        if '帳號 (Username)' in header_row and '是否已領取 (Claimed)' in header_row:
+                                            username_col_idx = header_row.index('帳號 (Username)') + 1
+                                            col_idx = header_row.index('是否已領取 (Claimed)') + 1
+                                            
+                                            # 從表單精準在「帳號」那一欄尋找該帳號所在的 row
+                                            cell = ws.find(target_username, in_column=username_col_idx)
+                                            if cell:
+                                                row_num = cell.row
+                                                ws.update_cell(row_num, col_idx, "TRUE")
+                                                st.success("✅ 真．同步完成！已經將此人狀態更改為「TRUE」，更新到 Google Sheets 裡了！")
+                                            else:
+                                                st.warning("⚠️ 寫入失敗，在 Google 表單「帳號」欄位裡找不到這個帳號的儲存格。")
+                                        else:
+                                            st.error("找不到必須的欄位！您的 Google 表單格式不對。")
+                                    except Exception as e:
+                                        st.error(f"雲端連線更新失敗：{e}")
+                                time.sleep(1) # 暫停讓使用者看到成功訊息
+                                try:
+                                    st.rerun()
+                                except AttributeError:
+                                    st.experimental_rerun()
                 
         st.markdown("---")
         st.header("📊 遠端發放進度統計資料 (包含已打勾)")
