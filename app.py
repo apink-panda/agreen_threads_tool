@@ -340,7 +340,19 @@ with tab2:
             
         st.markdown("---")
         st.header("2. 📸 手機拍下粉絲出示的 QR Code")
-        st.info("如果粉絲已經在他們自己手機的 Threads 個人首頁出示了「分享個人檔案」的 QR Code，請點擊下方在此拍下該條碼。")
+        st.info("如果粉絲已經在他們自己手機的 Threads 個人首頁出示了「分享個人檔案」的 QR Code，請在此點擊畫面拍照。您可以使用畫面右上角的 🔁 按鈕切換為後鏡頭！")
+        
+        # 覆寫相機視窗原本受限的寬度尺寸，強制100%滿版
+        st.markdown("""
+        <style>
+        [data-testid="stCameraInput"] > div > div > video, 
+        [data-testid="stCameraInput"] > div > div > img {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
         camera_image = st.camera_input("📸 請對準粉絲 QR Code 點擊拍照")
         
