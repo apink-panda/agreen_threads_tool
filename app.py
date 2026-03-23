@@ -382,8 +382,8 @@ with tab2:
             st.session_state.claimed_users = set()
             
         st.markdown("---")
-        st.header("2. 📸 手機拍下粉絲出示的 QR Code")
-        st.info("如果粉絲已經在他們自己手機的 Threads 個人首頁出示了「分享個人檔案」的 QR Code，請在此點擊畫面拍照。您可以使用畫面右上角的 🔁 按鈕切換為後鏡頭！")
+        st.header("2. 📸 手機拍下粉絲出示的 QR Code (掃描區)")
+        st.info("點擊下方開關來開啟相機。如果粉絲出示了 Threads 的 QR Code，請對準拍照。需要省電時可隨時關閉相機！")
         
         # 覆寫相機視窗原本受限的寬度尺寸，強制100%滿版
         st.markdown("""
@@ -397,7 +397,10 @@ with tab2:
         </style>
         """, unsafe_allow_html=True)
         
-        camera_image = st.camera_input("📸 請對準粉絲 QR Code 點擊拍照")
+        enable_camera = st.toggle("📷 開啟相機掃描", value=False)
+        camera_image = None
+        if enable_camera:
+            camera_image = st.camera_input("📸 請對準粉絲 QR Code 點擊拍照（可點右上角 🔁 切換鏡頭）")
         
         st.markdown("---")
         st.subheader("✍️ 備用：手動輸入帳號驗證")
@@ -519,7 +522,44 @@ with tab2:
                                     st.experimental_rerun()
                 
         st.markdown("---")
-        st.header("📊 遠端發放進度統計資料 (包含已打勾)")
+        st.header("🏃 3. 現場直接發放 (無登記名單)")
+        st.info("如果是現場隨機發送給沒有填表/預先留言的粉絲，可以點擊下方按鈕直接發出 1 份『手幅』。這會在 Google 表單新增一筆紀錄，以此扣抵庫存數量。")
+        if st.button("🎁 現場直接發放 1 份『手幅』 (免登記)", type="secondary"):
+            with st.spinner("🔄 正在寫入現場發放紀錄至 Google Sheets..."):
+                try:
+                    import datetime
+                    ws = get_gsheet()
+                    header_row = ws.row_values(1)
+                    
+                    timestamp_str = datetime.datetime.now().strftime("%H%M%S")
+                    fake_username = f"現場直發無帳號_{timestamp_str}"
+                    
+                    row_to_append = [""] * len(header_row)
+                    if '帳號 (Username)' in header_row:
+                        row_to_append[header_row.index('帳號 (Username)')] = fake_username
+                    if '應發放物' in header_row:
+                        row_to_append[header_row.index('應發放物')] = "手幅"
+                    if '是否已領取 (Claimed)' in header_row:
+                        row_to_append[header_row.index('是否已領取 (Claimed)')] = "TRUE"
+                        
+                    ws.append_row(row_to_append)
+                    
+                    # 更新本地 DataFrame
+                    new_row = {"帳號 (Username)": fake_username, "應發放物": "手幅", "是否已領取 (Claimed)": "TRUE"}
+                    new_df = pd.DataFrame([new_row])
+                    st.session_state.df_rewards = pd.concat([st.session_state.df_rewards, new_df], ignore_index=True)
+                    
+                    st.success(f"✅ 成功發放 1 份手幅！(系統產生佔位編號: {fake_username})")
+                    time.sleep(1)
+                    try:
+                        st.rerun()
+                    except AttributeError:
+                        st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"❌ 直接發放寫入失敗：{e}")
+
+        st.markdown("---")
+        st.header("📊 4. 遠端發放進度統計資料 (包含已打勾)")
         
         # 1. 計算總打勾人數
         claimed_df = df_rewards[df_rewards['是否已領取 (Claimed)'].astype(str).str.upper() == 'TRUE']
