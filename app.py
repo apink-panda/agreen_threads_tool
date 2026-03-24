@@ -132,47 +132,6 @@ with tab1:
     st.info("在這個頁面中，您可以使用 Meta API 自動抓取 Threads 留言，並直接推送到您的 Google Sheets 作為最基礎的名單庫。")
     # --- 1. 設定 Token ---
     st.header("1. API 授權設定")
-    with st.expander("如何取得 Meta Threads Access Token?", expanded=False):
-        st.markdown('''
-        **步驟指南：**
-        1. 前往 **[Meta for Developers](https://developers.facebook.com/)** 註冊開發者帳號。
-        2. 點擊右上角「我的應用程式」>「建立應用程式」> 選擇以「允許用戶使用其 Threads 帳號登入...」為目標。
-        3. 在應用程式設定中添加 **Threads API** 產品。
-        4. 運用 User Token Generator 產生一組給自己帳號使用的 **User Access Token** (建議產生 60 天長效型)。
-        5. 複製 Token 並直接貼在下方的輸入框。
-        ''')
-
-    with st.expander("🔄 實用工具：將短效 Token 轉換為 60 天長效 Token", expanded=False):
-        st.info("如果您剛在 Meta 後台產生的 Token 只有 1 小時效期，可以在這裡換成 60 天的長效 Token。之後請把換出來的這串寫進 `st.secrets` 裡 (變數名稱取名為 `threads_access_token`)，或是每次手動貼在下方都可以。")
-        app_secret_input = st.text_input("1. 輸入您的 Meta App Secret (應用程式密鑰)", type="password", help="可在 Meta 開發者後台「應用程式設定 > 基本資料」找到")
-        short_token_input = st.text_input("2. 輸入剛剛拿到的短效 Token", type="password")
-        
-        if st.button("🚀 換取 60 天長效 Token"):
-            if app_secret_input and short_token_input:
-                exchange_url = "https://graph.threads.net/access_token"
-                exchange_params = {
-                    "grant_type": "th_exchange_token",
-                    "client_secret": app_secret_input.strip(),
-                    "access_token": short_token_input.strip()
-                }
-                with st.spinner("正在與 Meta 伺服器交換 Token..."):
-                    try:
-                        ex_res = requests.get(exchange_url, params=exchange_params)
-                        ex_json = ex_res.json()
-                        if ex_res.status_code == 200:
-                            long_token = ex_json.get("access_token")
-                            expires_in = ex_json.get("expires_in", 0)
-                            days = expires_in // (24 * 3600)
-                            st.success(f"✅ 成功！這是你的全新 Token (效期約 {days} 天)")
-                            st.code(long_token, language="text")
-                            st.info("☝️ 請點擊上方黑框右上角的「複製圖示」將 Token 複製下來。")
-                        else:
-                            error_msg = ex_json.get("error", {}).get("message", "Unknown error")
-                            st.error(f"❌ 轉換失敗：{error_msg}")
-                    except Exception as e:
-                        st.error(f"❌ 發生錯誤：{str(e)}")
-            else:
-                st.warning("⚠️ 請先輸入 App Secret 與短效 Token")
 
     # 若 secrets 中有存 threads_access_token，則自動帶入
     default_token = ""
@@ -182,13 +141,62 @@ with tab1:
     except Exception:
         pass
 
-    access_token = st.text_input("🔑 Threads Access Token", value=default_token, type="password", help="您的 Meta 開發者存取權杖")
+    access_token = default_token
 
-    if access_token:
-        if default_token and access_token == default_token:
-            st.success("✅ 已自動從 st.secrets 載入您的長效 Token！")
-        else:
-            st.success("✅ Token 已輸入就緒！")
+    if default_token:
+        st.success("🔒 【系統安全模式】已自動且安全地從系統環境載入 Meta 授權 (Token 已隱密儲存)！您可直接開始抽獎。")
+        show_token_settings = st.checkbox("⚙️ 顯示手動 Token 設定與工具 (網頁部署狀態下預設隱藏以保護安全)", value=False)
+    else:
+        st.info("⚠️ 尚未偵測到預設 Token，請進行以下設定：")
+        show_token_settings = True
+
+    if show_token_settings:
+        with st.expander("如何取得 Meta Threads Access Token?", expanded=False):
+            st.markdown('''
+            **步驟指南：**
+            1. 前往 **[Meta for Developers](https://developers.facebook.com/)** 註冊開發者帳號。
+            2. 點擊右上角「我的應用程式」>「建立應用程式」> 選擇以「允許用戶使用其 Threads 帳號登入...」為目標。
+            3. 在應用程式設定中添加 **Threads API** 產品。
+            4. 運用 User Token Generator 產生一組給自己帳號使用的 **User Access Token** (建議產生 60 天長效型)。
+            5. 複製 Token 並直接貼在下方的輸入框。
+            ''')
+    
+        with st.expander("🔄 實用工具：將短效 Token 轉換為 60 天長效 Token", expanded=False):
+            st.info("如果您剛在 Meta 後台產生的 Token 只有 1 小時效期，可以在這裡換成 60 天的長效 Token。之後請把換出來的這串寫進 `st.secrets` 裡 (變數名稱取名為 `threads_access_token`)，或是每次手動貼在下方都可以。")
+            app_secret_input = st.text_input("1. 輸入您的 Meta App Secret (應用程式密鑰)", type="password", help="可在 Meta 開發者後台「應用程式設定 > 基本資料」找到")
+            short_token_input = st.text_input("2. 輸入剛剛拿到的短效 Token", type="password")
+            
+            if st.button("🚀 換取 60 天長效 Token"):
+                if app_secret_input and short_token_input:
+                    exchange_url = "https://graph.threads.net/access_token"
+                    exchange_params = {
+                        "grant_type": "th_exchange_token",
+                        "client_secret": app_secret_input.strip(),
+                        "access_token": short_token_input.strip()
+                    }
+                    with st.spinner("正在與 Meta 伺服器交換 Token..."):
+                        try:
+                            ex_res = requests.get(exchange_url, params=exchange_params)
+                            ex_json = ex_res.json()
+                            if ex_res.status_code == 200:
+                                long_token = ex_json.get("access_token")
+                                expires_in = ex_json.get("expires_in", 0)
+                                days = expires_in // (24 * 3600)
+                                st.success(f"✅ 成功！這是你的全新 Token (效期約 {days} 天)")
+                                st.code(long_token, language="text")
+                                st.info("☝️ 請點擊上方黑框右上角的「複製圖示」將 Token 複製下來。")
+                            else:
+                                error_msg = ex_json.get("error", {}).get("message", "Unknown error")
+                                st.error(f"❌ 轉換失敗：{error_msg}")
+                        except Exception as e:
+                            st.error(f"❌ 發生錯誤：{str(e)}")
+                else:
+                    st.warning("⚠️ 請先輸入 App Secret 與短效 Token")
+    
+        manual_token = st.text_input("🔑 手動輸入 Threads Access Token", value="", type="password", help="您的 Meta 開發者存取權杖", key="manual_token_input")
+        if manual_token:
+            access_token = manual_token
+            st.success("✅ 手動 Token 已輸入就緒！")
         
         # --- 2. 選擇貼文 ---
         st.header("2. 選擇目標貼文")
