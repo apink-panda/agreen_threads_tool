@@ -126,9 +126,10 @@ st.set_page_config(page_title="Threads 應援抽獎工具 ☁️ 雲端版", pag
 st.title("🎁 Threads 應援抽獎留言整理工具")
 st.markdown("一站式完成 **得獎名單連線拉取** 與 **現場防重複發放系統**！全部資料與 **Google Sheets 雙向同步**！")
 
-tab1, tab2 = st.tabs(["📝 整理與產生得獎名單", "📱 現場掃碼發放區 ☁️"])
+# tab1, tab2 = st.tabs(["📝 整理與產生得獎名單", "📱 現場掃碼發放區 ☁️"])
+tab2 = st.container()
 
-with tab1:
+if False: # with tab1: (隱藏整理與產生得獎名單的畫面)
     st.info("在這個頁面中，您可以使用 Meta API 自動抓取 Threads 留言，並直接推送到您的 Google Sheets 作為最基礎的名單庫。")
     # --- 1. 設定 Token ---
     st.header("1. API 授權設定")
@@ -582,12 +583,12 @@ with tab2:
         count_slogan = len(claimed_df[claimed_df['應發放物'].astype(str) == '手幅'])
         count_two = len(claimed_df[claimed_df['應發放物'].astype(str) == '鑰匙圈貼紙'])
         
-        # 鑰匙圈貼紙組合 總共 30 份 (只要有包含這個品項不管是大禮包還是單獨發放都會扣除)
-        total_keychain = 30
+        # 鑰匙圈貼紙組合 總共 40 份 (只要有包含這個品項不管是大禮包還是單獨發放都會扣除)
+        total_keychain = 40
         used_keychain = count_all + count_two
         
-        # 手幅 總共 60 份 (不管是不是透過大禮包發出，只要發出手幅就算一份)
-        total_slogan = 60
+        # 手幅 總共 77 份 (不管是不是透過大禮包發出，只要發出手幅就算一份)
+        total_slogan = 77
         used_slogan = count_all + count_slogan
         
         st.markdown("### 📦 現場實體物資庫存倒數")
